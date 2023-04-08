@@ -1,114 +1,178 @@
-# ServerConnect
-# ServerConnect
+##  Обновляем и устанавлием необходимые пакеты
 
-django-clean-template
-Чистый шаблон django: nginx + gunicorn + supervisor
-
-### 1. Ставим необходимые пакеты
-
-
-
-```commandline
-sudo apt-get update && sudo apt-get upgrade -y
+```
+sudo apt update
+sudo apt install python3-pip python3-dev python3-venv libpq-dev postgresql postgresql-contrib nginx curl
 ```
 
-```commandline
-sudo apt-get install -y  htop git curl nano nginx  supervisor
+## Создаем базу данных PostgreSQL и настраиваем ее
+
+#### Входим в систему 
+```
+sudo -u postgres psql
 ```
 
-```commandline
-sudo apt-get install -y python3-pip python3-dev python3-venv
+#### Создаем базу данных
+
+```
+CREATE DATABASE myproject;
 ```
 
-### 2. Ставим нужный пакет Python
+#### Создаем пользователя 
 
-```commandline
-python3 --version 
+```
+CREATE USER serhii WITH PASSWORD '123';
 ```
 
-### 3. Создаем директории 
+#### Настройки для django 
 
-```commandline
-mkdir code && cd code && mkdir project1 && cd project1
+```
+ALTER ROLE serhii SET client_encoding TO 'utf8';
+ALTER ROLE serhii SET default_transaction_isolation TO 'read committed';
 ```
 
-/home/user/code/project1
-
-### 4. Создаем виртуальное окружение и активируем его
-
-```commandline
-python3 -m venv env
+#### Предоставляем доступ пользователю
+```
+GRANT ALL PRIVILEGES ON DATABASE myproject TO serhii;
 ```
 
-```commandline
-source env/bin/activate
+#### Выходим из консоли PostgresSQL
+```
+\q
 ```
 
-### 5. Апдейтим пакеты устанавливаем Django
+## Создаем виртуальную среду и необходимые пакеты
 
+#### Создаем директорию и переходим в неё
 ```commandline
+mkdir project1 && cd project1
+```
+
+#### Устанавливаем пакет виртуальной среды
+```commandline
+python3 -m venv venv
+```
+#### Активируем 
+```
+source venv/bin/activate
+```
+#### Обновляем пакеты
+```
 pip install -U pip setuptools
 ```
 
-```commandline
-pip install django gunicorn
+#### Ставим нужные пакеты
+```
+pip install django gunicorn psycopg2-binary
 ```
 
-### 6. стартуем django project
+## Создание проекта Django
 
 ```
 django-admin startproject config .
 ```
-### 7. Переходим в папку на уровне с manage.py и создаем gunicorn config
 
-```commandline
-sudo nano gunicorn_conf.py
+прописываем ALLOWED_HOSTS
+![img.png](img.png)
+
+указываем данные для PostgreSQL
+![img_1.png](img_1.png)
+
+прописываем путь до статики
+![img_2.png](img_2.png)
+
+#### Выполним миграции
+```
+python manage.py migrate
 ```
 
-### 8. В текущей папке создаем папку bin/ и создаем скрипт gunicorn и выдаем ему права
+#### Создаем супер пользователя
+```
+python manage.py createsuperuser
+```
+#### Собираем статические файлы 
+```
+python manage.py collectstatic
+```
+
+#### ЗАдаем права на использование 8000 порта
+```commandline
+sudo ufw allow 8000
+```
+
+#### Запускаем сервер django
+```
+python manage.py runserver 0.0.0.0:8000
+```
+#### Текст работоспособности gunicorn
+```commandline
+cd project1
+```
+```commandline
+gunicorn --bind 0.0.0.0:8000 config.wsgi
+```
+
+## Создание файлов сокета и служебных файлов systemd для Gunicorn
 
 ```commandline
-mkdir bin/ && cd bin/
+deactivate
+```
+
+#### Создайте и откройте файл сокета systemd для Gunicorn с привилегиями
+```commandline
+sudo nano /etc/systemd/system/gunicorn.socket
+```
+#### Теперь создайте и откройте служебный файл systemd для Gunicorn 
+```commandline
+sudo nano /etc/systemd/system/gunicorn.service
+```
+```commandline
+sudo systemctl start gunicorn.socket
+```
+```commandline
+sudo systemctl enable gunicorn.socket
+```
+#### Проверка файла сокета Gunicorn
+
+```commandline
+sudo systemctl status gunicorn.socket
 ```
 
 ```commandline
-sudo nano start_gunicorn.sh
+file /run/gunicorn.sock
+```
+#### Тестирование активации сокета
+
+```commandline
+sudo systemctl status gunicorn
 ```
 
 ```commandline
-sudo chmod +x bin/start_gunicorn.sh
+curl --unix-socket /run/gunicorn.sock localhost
 ```
 
-### 9. Настраиваем конфиги nginx и рестартим
+## Настройка Nginx >= 1.22 как прокси для Gunicorn 
 
-```commandline
-cd /etc/nginx/sites-enabled/  && sudo nano default
+в файл по пути /etc/nginx/conf.d/default.conf дописываем параметры конфига
+
+![img_5.png](img_5.png)
+
+проверка синтаксиса nginx
 ```
-коментим текущие настройки вставляем свои
-
-проверяем правильность настроек
-
-```commandline
 sudo nginx -t
 ```
-
 ```commandline
-sudo service nginx restart
-```
-
-### 10. Настраиваем supervisor и запускаем
-
-```commandline
-cd /etc/supervisor/conf.d && sudo nano project1.conf
+sudo systemctl restart nginx
 ```
 ```commandline
-sudo service supervisor start
+sudo ufw delete allow 8000
 ```
-### 11. Прописываем домен и рестартим сервер
-
-в setting.py  прописываем hosts ip "127.0.0.1"
-
 ```commandline
-sudo reboot
+sudo ufw allow 'Nginx Full'
 ```
+
+
+
+
+
 
