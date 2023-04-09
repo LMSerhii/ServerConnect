@@ -170,7 +170,9 @@ sudo ufw delete allow 8000
 ```commandline
 sudo ufw allow 'Nginx Full'
 ```
-
+```
+sudo systemctl restart gunicorn
+```
 
 
 
